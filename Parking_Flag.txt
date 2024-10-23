@@ -1,0 +1,2 @@
+function park_flag = fcn(global_x,global_y, finish)
+park_flag = norm([finish(1)-global_x,finish(2)-global_y]) <= 30;

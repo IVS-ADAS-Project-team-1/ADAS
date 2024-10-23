@@ -1,0 +1,22 @@
+function obstacle_list = add_obstacle(traffic_info, traffic_size)
+    % add_obstacle: 교통 정보를 기반으로 장애물 리스트를 생성하는 함수
+    % Input:
+    %   traffic_info - 교통 객체 정보 (각 객체의 [x, y, yaw rate] 순서대로 1차원 배열 형태)
+    %   traffic_size - 각 교통 객체의 크기 정보 (반지름)
+    % Output:
+    %   obstacle_list - 장애물 리스트 [(x, y, radius), ...]
+
+    % 장애물 리스트 초기화
+    num_objects = length(traffic_info) / 3;
+    obstacle_list = zeros(num_objects, 3);
+    
+    % 교통 객체 추가
+    for i = 1:num_objects
+        x = traffic_info((i - 1) * 3 + 1);
+        y = traffic_info((i - 1) * 3 + 2);
+        radius = traffic_size(min(i, length(traffic_size))); % 인덱스 범위 오류 방지
+        
+        % 장애물 리스트에 추가
+        obstacle_list(i, :) = [x, y, radius];
+    end
+end

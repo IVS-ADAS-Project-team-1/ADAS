@@ -1,0 +1,149 @@
+function path = RRT(start, goal, space, obstacle_list, success_dist_thres)
+    % RRT: Rapidly-Exploring Random Tree Algorithm for Path Planning
+    % Input:
+    %   start - 시작 위치 [x, y]
+    %   goal - 목표 위치 [x, y]
+    %   space - 탐색 공간 [min_x, max_x, min_y, max_y]
+    %   obstacle_list - 장애물 리스트 [(x, y, radius), ...]
+    %   success_dist_thres - 목표에 도달한 것으로 간주되는 거리 임계값
+    % Output:
+    %   path - 경로 리스트 [(x1, y1); (x2, y2); ...]
+
+    % Node 구조체 정의 (부모를 인덱스로 저장)
+    Node = @(x, y, parent_idx) struct('x', x, 'y', y, 'parent_idx', parent_idx);
+
+    % 시작 및 목표 노드 초기화
+    start_node = Node(start(1), start(2), -1);  % 시작 노드의 parent는 없으므로 -1로 설정
+    goal_node = Node(goal(1), goal(2), -1);    % 목표 노드도 parent는 필요하지 않음
+
+    % 파라미터 설정
+    max_iter = 5000;  % 최대 반복 횟수
+    stepsize = 0.5;
+    goal_sample_rate = 0.1;
+    min_u = 1.0;
+    max_u = 3.0;
+    collision_check_step = 0.005;
+
+    % 노드 리스트 및 부모 리스트 미리 할당
+    node_list = repmat(start_node, 1, max_iter);  % 크기가 max_iter인 배열로 미리 할당
+    parent_list = -ones(1, max_iter);  % 부모 노드의 인덱스를 저장할 배열 (-1로 초기화)
+    node_list(1) = start_node;  % 첫 번째 노드를 시작 노드로 설정
+    node_count = 1;  % 현재까지 생성된 노드의 수
+
+    % RRT 알고리즘 실행
+    for i = 1:max_iter
+        % 무작위 노드 생성
+        rand_node = get_random_node(goal_node, space, goal_sample_rate);
+
+        % 가장 가까운 노드 찾기
+        nearest_idx = find_nearest_node(node_list(1:node_count), rand_node);
+        nearest_node = node_list(nearest_idx);
+
+        % 새로운 노드 생성 (무작위 이동 거리)
+        u = stepsize * get_random_input(min_u, max_u);
+        new_node = create_child_node(nearest_node, rand_node, u);
+
+        % 충돌 확인
+        if is_collision(new_node, obstacle_list)
+            continue;
+        end
+
+        % 경로 충돌 확인
+        if is_path_collide(nearest_node, new_node, obstacle_list, collision_check_step)
+            continue;
+        end
+
+        % 새 노드를 트리에 추가 (부모 인덱스를 저장)
+        node_count = node_count + 1;  % 노드 수 증가
+        node_list(node_count) = new_node;  % 새로운 노드를 리스트에 추가
+        parent_list(node_count) = nearest_idx;  % 부모 인덱스를 저장
+
+        % 목표 도달 여부 확인
+        if check_goal(new_node, goal_node, success_dist_thres)
+            path = backtrace_path(node_list(1:node_count), parent_list(1:node_count), node_count);
+            while size(path,1) < 400
+                path = [path; goal(1),goal(2)];
+            end
+            return;
+        end
+    end
+
+    % 경로를 찾지 못한 경우
+    path = [];
+end
+
+function rand_node = get_random_node(goal_node, space, goal_sample_rate)
+    % 무작위 노드 생성 함수 (목표 지점으로 유도할 확률 포함)
+    if rand < goal_sample_rate
+        rand_node = goal_node;
+    else
+        rand_x = space(1) + (space(2) - space(1)) * rand;
+        rand_y = space(3) + (space(4) - space(3)) * rand;
+        rand_node = struct('x', rand_x, 'y', rand_y, 'parent_idx', -1);
+    end
+end
+
+function nearest_idx = find_nearest_node(node_list, rand_node)
+    % 가장 가까운 노드 찾기 (노드 인덱스를 반환)
+    distances = arrayfun(@(node) norm([node.x - rand_node.x, node.y - rand_node.y]), node_list);
+    [~, idx] = min(distances);
+    nearest_idx = idx;
+end
+
+function new_node = create_child_node(nearest_node, rand_node, u)
+    % 새로운 자식 노드 생성 (부모 인덱스는 호출한 쪽에서 설정)
+    theta = atan2(rand_node.y - nearest_node.y, rand_node.x - nearest_node.x);
+    new_x = nearest_node.x + u * cos(theta);
+    new_y = nearest_node.y + u * sin(theta);
+    new_node = struct('x', new_x, 'y', new_y, 'parent_idx', -1);  % 부모 인덱스는 이후에 설정
+end
+
+function goal_reached = check_goal(node, goal_node, success_dist_thres)
+    % 목표에 도달했는지 여부 확인
+    goal_reached = norm([node.x - goal_node.x, node.y - goal_node.y]) <= success_dist_thres;
+end
+
+function path = backtrace_path(node_list, parent_list, current_idx)
+    % 목표에 도달한 경로를 역추적
+    path = [node_list(current_idx).x, node_list(current_idx).y];
+    while parent_list(current_idx) ~= -1
+        current_idx = parent_list(current_idx);  % 부모 인덱스를 통해 경로를 추적
+        path = [[node_list(current_idx).x, node_list(current_idx).y]; path];  % 경로를 앞에 추가
+    end
+end
+
+function collide = is_collision(node, obstacle_list)
+    % 노드가 장애물과 충돌하는지 확인
+    collide = false;
+    for i = 1:size(obstacle_list, 1)
+        obs = obstacle_list(i, :);
+        if norm([node.x - obs(1), node.y - obs(2)]) <= obs(3)
+            collide = true;
+            return;
+        end
+    end
+end
+
+function collide = is_path_collide(node_from, node_to, obstacle_list, check_step)
+    % 두 노드 간 경로가 장애물과 충돌하는지 확인
+    dist = norm([node_to.x - node_from.x, node_to.y - node_from.y]);
+    steps = ceil(dist / check_step);
+    for i = 0:steps
+        t = i / steps;
+        x = node_from.x + t * (node_to.x - node_from.x);
+        y = node_from.y + t * (node_to.y - node_from.y);
+        for j = 1:size(obstacle_list, 1)
+            obs = obstacle_list(j, :);
+            if norm([x - obs(1), y - obs(2)]) <= obs(3)
+                collide = true;
+                return;
+            end
+        end
+    end
+    collide = false;
+end
+
+function random_input = get_random_input(min_u, max_u)
+    % 무작위 입력 값을 생성
+    random_input = min_u + (max_u - min_u) * rand;
+end

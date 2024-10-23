@@ -1,0 +1,19 @@
+function mapMatrix = generate_map(map_boundary)
+    % generate_map: 맵 경계를 기반으로 맵을 생성하는 함수
+    % Input:
+    %   map_boundary - 맵의 경계 [xmin, xmax, ymin, ymax]
+    % Output:
+    %   mapMatrix - 생성된 맵 행렬
+
+    % 맵 경계 설정
+    xmin = map_boundary(1);
+    xmax = map_boundary(2);
+    ymin = map_boundary(3);
+    ymax = map_boundary(4);
+    
+    % 맵 행렬 초기화 (여기서는 0으로 초기화된 간단한 행렬로 정의)
+    resolution = 1; % 맵의 해상도 (단위: m/pixel)
+    x_points = xmin:resolution:xmax;
+    y_points = ymin:resolution:ymax;
+    mapMatrix = zeros(length(y_points), length(x_points));
+end
